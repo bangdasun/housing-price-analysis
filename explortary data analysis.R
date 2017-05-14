@@ -119,3 +119,9 @@ ggplot(training, aes(x = factor(waterfront), y = price, fill = factor(grade))) +
   facet_grid(factor(view) ~ factor(condition)) + 
   scale_fill_brewer(palette="Spectral") + 
   labs(x = "whether has waterfront", title = "Distribution of grade/view/condition based on whether the house has waterfront")
+
+# Correlation matrix
+variable_set <- training[c("price", "sqft_living", "bedrooms", "bathrooms",
+                           "floors", "waterfront", "view", "grade")]
+corMatrix = round(cor(variable_set), digits = 3)
+heatmap(corMatrix, Rowv = NA, Colv = NA)
