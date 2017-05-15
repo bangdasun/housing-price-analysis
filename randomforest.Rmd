@@ -1,0 +1,138 @@
+---
+title: "Housing Price Analysis using Random Forest"
+author: "Bangda Sun"
+date: "May 14, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = FALSE}
+# Data import 
+setwd("C://Users//Bangda//Desktop//project-housing price analysis")
+training = read.csv("training.csv", header = TRUE)
+testing  = read.csv("test.csv", header = TRUE)
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+We see that linear regression model works well on predicting house price, the final model's $R^{2}$ we get is approximately 0.874, which is very good in practice. \par
+Next we try to move beyond linearity, one of the most important family of models in machine learning is tree models, includeing decision trees, bagging and random forest etc.\par
+The predictors we used in the linear regression model includes:\par
+$\textbf{sqftliving, bedrooms, bathrooms, grade, floors, waterfront, yrbuilt, lat, long, view, zipcode, condition}$.\par
+
+## 1. Decision Tree
+
+First we start from single decision tree,
+
+```{r}
+library(tree)
+tree1 = tree(price ~. -date-zipcode, data = training)
+summary(tree1)
+# Visualize the tree
+plot(tree1)
+text(tree1)
+# Text description of tree
+tree1
+```
+
+Then we use cross validation to see whether pruning the tree will improve performance,
+
+```{r}
+cv_tree1 = cv.tree(tree1)
+library(ggplot2)
+ggplot() + 
+  geom_line(mapping = aes(x = cv_tree1$size, y = cv_tree1$dev)) + 
+  geom_point(mapping = aes(x = cv_tree1$size, y = cv_tree1$dev), size = 3) + 
+  labs(x = "size of tree", y = "dev")
+```
+
+We can see that the dev of tree will get minimum when the tree size is 12. Therefore, the performance of tree doesn't improve much if we prune the tree.\par
+
+Next we calculate the test error of this tree,
+
+```{r}
+predOfTree1 = predict(tree1, newdata = testing)
+rmse1 = sqrt(mean((predOfTree1 - testing$price)^2))
+rmse1
+ggplot() +
+  geom_point(mapping = aes(x = predOfTree1, y = testing$price), alpha = .2, size = 2) +
+  geom_abline(slope = 1, intercept = 0) + 
+  labs(x = "prediction", y = "actual value")
+ggplot() + 
+  geom_line(mapping = aes(x = 1:length(predOfTree1), y = predOfTree1 - testing$price)) +
+  geom_abline(slope = 0, intercept = 0) +
+  geom_abline(slope = 0, intercept = rmse1, linetype = "dashed", color = "red") + 
+  geom_abline(slope = 0, intercept = -rmse1, linetype = "dashed", color = "red") + 
+  labs(x = "observation", y = "price")
+```
+
+From this plot, we can see that many predictions are far away from their actual value. The error is still high. We need to seek models to predict more precisely.\par
+
+## 2. Random Forest
+
+We use ensemble methods to improve the performance of the tree model. One of the popular methods is random forest.
+
+```{r}
+library(randomForest)
+set.seed(1)
+randForest = randomForest(I(log(price)) ~. -id-zipcode-date, data = training, mtry = 5,
+                          importance = TRUE)
+randForest
+predOfrandForest = predict(randForest, newdata = testing)
+rmse2 = sqrt(mean((testing$price - exp(predOfrandForest))^2))
+rmse2
+ggplot() +
+  geom_point(mapping = aes(x = exp(predOfrandForest), y = testing$price), alpha = .2, size = 2) +
+  geom_abline(slope = 1, intercept = 0) + 
+  labs(x = "prediction", y = "actual value")
+ggplot() + 
+  geom_line(mapping = aes(x = 1:length(predOfrandForest), y = exp(predOfrandForest) - testing$price)) +
+  geom_abline(slope = 0, intercept = 0) +
+  geom_abline(slope = 0, intercept = rmse2, linetype = "dashed", color = "red") + 
+  geom_abline(slope = 0, intercept = -rmse2, linetype = "dashed", color = "red") + 
+  labs(x = "observation", y = "price")
+```
+
+
+```{r}
+importance(randForest)
+varImpPlot(randForest)
+```
+
