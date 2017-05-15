@@ -28,6 +28,23 @@ ggplot() +
   geom_abline(slope = 0, intercept = -rmse1, linetype = "dashed", color = "red") + 
   labs(x = "observation", y = "price")
 
+# Another package to build decision tree
+library(rpart)
+tree2 = rpart(price ~. -id-zipcode-date, data = training)
+summary(tree2)
+tree2
+printcp(tree2)
+# Get a simpler but less accurate tree by change cp
+tree3 = rpart(price ~. -id-zipcode-date, data = training, cp = .1)
+printcp(tree3)
+plot(tree3)
+text(tree3, cex = .7)
+# Get a complexr tree
+tree4 = rpart(price ~. -id-zipcode-date, data = training, cp = .005)
+printcp(tree4)
+plot(tree4)
+text(tree4, cex = .7)
+
 library(randomForest)
 set.seed(1)
 randForest = randomForest(I(log(price)) ~. -id-zipcode-date, data = training, mtry = 5,
